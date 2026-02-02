@@ -1,2 +1,317 @@
-# LectoFlu
-Lectura de palabras por minuto
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lectura en 1 Minuto</title>
+<style>#valorVelocidad { font-size: 0.9rem; color: var(--accent); }
+:root{--bg:#0f172a;--card:#020617;--text:#e5e7eb;--accent:#22d3ee;--button:#4f46e5;}
+body.light{--bg:#f4f6f8;--card:#ffffff;--text:#111827;--accent:#22d3ee;}
+body{margin:0;padding:1rem;font-family:Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);}
+.container{max-width:760px;margin:auto;background:var(--card);padding:1.5rem;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.3);}
+h1,h2{color:var(--accent);text-align:center;}
+select,button,textarea,input[type=range]{width:100%;padding:.8rem;margin-top:.6rem;border-radius:10px;border:1px solid #475569;font-size:1rem;box-sizing:border-box;}
+button{background:var(--button);color:#fff;cursor:pointer;transition:background 0.3s;}
+button:hover{background:#3730a3;}
+.texto{text-align:justify;line-height:1.6;font-size:var(--fontSize,1.15rem);margin-top:1rem;}
+.timer{text-align:center;font-size:2rem;color:var(--accent);margin:.5rem 0;font-weight:bold;}
+.progress{height:10px;background:#1e293b;border-radius:10px;overflow:hidden;margin-bottom:1rem;}
+.progress-bar{height:100%;width:0%;background:var(--accent);transition:width 1s linear;}
+.card{background:rgba(79,70,229,.1);padding:1rem;border-radius:14px;margin-top:1rem;border:1px solid rgba(255,255,255,0.2);}
+.hidden{display:none;}
+small{opacity:.8;}
+#textoSeleccionado{display:flex;flex-wrap:wrap;gap:0.5rem;margin:1rem 0;}
+#textoSeleccionado button{width:auto;flex:1 1 200px;min-width:150px;}
+
+/* 🎠 CINTA TRANSPORTADORA FLUIDEZ */
+.contenedor-palabras {
+  height: 80px; /* ← Más bajo */
+  overflow: hidden;
+  position: relative;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  margin: 1rem 0;
+  background: rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center; /* ← Centra vertical */
+}
+.palabras-cinta {
+  position: relative; /* ← Simplificado */
+  white-space: nowrap;
+  animation: cinta 60s linear infinite;
+  margin: 0 auto;
+}@keyframes cinta {
+  0% { transform: translateX(100%) translateY(-50%); }
+  100% { transform: translateX(-100%) translateY(-50%); }
+}
+
+/* Para el label del slider */
+#valorVelocidad {
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+<h1>📚 Lectura en 1 Minuto</h1>
+<button onclick="toggleConfig()">⚙️ Configuración / Docente</button>
+<div id="config" class="card hidden">
+  <label><input type="checkbox" id="toggleTimer" checked> Activar cronómetro</label><br>
+  <label><input type="checkbox" id="toggleTheme" onchange="toggleTheme()"> Modo claro / oscuro</label><br>
+  <label>Tamaño de letra</label>
+  <input type="range" min="1" max="1.6" step="0.1" value="1.15" onchange="cambiarFuente(this.value)"><br>
+  
+ <label>Velocidad cinta (seg) <strong>muy lenta</strong></label>
+<input type="range" id="velocidadCinta" min="60" max="300" value="120" step="10" onchange="cambiarVelocidadCinta(this.value)"><br>
+<small id="valorVelocidad">120 seg (lenta para básicos)</small><br>
+
+  <hr>
+  <strong>🔒 Modo docente</strong><br>
+  <label><input type="checkbox" id="modoDocente"> Activar</label>
+  <button onclick="exportarJSON()">⬇ Exportar biblioteca JSON</button>
+</div>
+<select id="nivel">
+<option value="">Selecciona nivel</option>
+<option value="2b">2° Básico</option><option value="3b">3° Básico</option><option value="4b">4° Básico</option><option value="5b">5° Básico</option><option value="6b">6° Básico</option><option value="7b">7° Básico</option><option value="8b">8° Básico</option><option value="1m">1° Medio</option><option value="2m">2° Medio</option>
+</select>
+<button onclick="cargarTextos()">🚀 Comenzar lectura</button>
+
+<div id="lectura" class="hidden">
+<div id="textoSeleccionado"></div>
+<div class="timer" id="timer">60</div>
+<div class="progress"><div id="barra" class="progress-bar"></div></div>
+<div id="texto" class="texto"></div>
+<button onclick="iniciarLectura()">▶ Iniciar</button>
+<button onclick="mostrarJuego()">📖 Ir a preguntas</button>
+<button onclick="document.getElementById('lectura').classList.add('hidden'); document.getElementById('fluidez').classList.remove('hidden');">⚡ Fluidez Cinta</button>
+<button onclick="document.getElementById('juego').classList.add('hidden'); document.getElementById('lectura').classList.remove('hidden');">← Volver lectura</button>
+</div>
+
+<div id="juego" class="card hidden">
+<h2>🧠 Juego de cierre</h2>
+<p id="p1"></p>
+<p id="p2"></p>
+<div id="respuestas" class="hidden"><small>Respuestas correctas (modo docente)</small></div>
+<button onclick="irLectura()">← Volver lectura</button>
+</div>
+
+<!-- ✨ FLUIDEZ CON CINTA TRANSPORTADORA -->
+<div id="fluidez" class="card hidden">
+<h2>⚡ Fluidez Lectora (Cinta Transportadora)</h2>
+<select id="tipoFluidez">
+<option value="silabas">Sílabas sueltas</option>
+<option value="palabras">Palabras rápidas</option>
+<option value="oraciones">Oraciones cortas</option>
+</select>
+<div class="timer" id="timerFluidez">30</div>
+<div class="progress"><div id="barraFluidez" class="progress-bar"></div></div>
+<div id="contenedorFluidez" class="contenedor-palabras">
+  <div id="cintaFluidez" class="palabras-cinta" style="font-size:2.2rem; font-weight:bold; color:var(--text);">¡Selecciona nivel!</div>
+</div>
+<button onclick="iniciarFluidez()">▶ Iniciar Cinta (05 seg)</button>
+<small id="puntuacionFluidez">Selecciona nivel y tipo de ejercicio</small>
+<button onclick="irLectura()">← Volver Lectura</button>
+</div>
+
+<div id="editor" class="card hidden">
+<h2>✏️ Banco editable (docente)</h2>
+<textarea id="editorTexto" rows="6" placeholder="Texto principal aquí..."></textarea>
+<textarea id="editorP1" rows="2" placeholder="Pregunta 1"></textarea>
+<textarea id="editorP2" rows="2" placeholder="Pregunta 2"></textarea>
+<button onclick="guardarEdicion()">💾 Guardar cambios</button>
+</div>
+</div>
+<script>
+const biblioteca={
+"2b":[{"id":"2b-1",texto:"Tomás tenía un perro llamado Max que era muy curioso y juguetón y cada mañana salían juntos al patio para correr y saltar con una pelota roja que siempre se escondía bajo el árbol grande del fondo mientras Tomás reía feliz y llamaba a su amigo peludo para seguir jugando sin parar hasta cansarse y volver tranquilos a la casa.",preguntas:["¿Tomás tenía un perro?","¿La pelota era roja?"],respuestas:["Sí","Sí"]},
+  {id:"2b-2",texto:"Lucía encontró un conejito blanco en el jardín que temblaba de frío lo envolvió en una manta suave lo llevó a su casa le dio zanahoria fresca y le hizo una casita con cajitas de cartón el conejito saltó feliz y se convirtió en su mejor amigo juguetón.",preguntas:["¿Lucía encontró un conejito?","¿El conejito saltó feliz?"],respuestas:["Sí","Sí"]},
+  {id:"2b-3",texto:"En el bosque los tres cerditos construyeron casas Cacho hizo la suya de ladrillos fuerte Pecho de madera resistente y Colita de paja ligera llegó el lobo y sopló pero solo voló la paja los hermanos se unieron en la casa de ladrillos y festejaron victoriosos con pasteles dulces.",preguntas:["¿Los cerditos construyeron casas?","¿El lobo destruyó todas las casas?"],respuestas:["Sí","No"]}
+],
+"3b":[
+  {id:"3b-1",texto:"Sofía despertó temprano porque era el día de la excursión del curso y estaba muy emocionada preparó su mochila con agua y colación y durante el viaje en bus conversó con sus amigos mientras observaba cerros árboles y nubes al llegar caminaron por un sendero aprendiendo sobre la naturaleza y al final regresó cansada pero muy feliz por lo vivido.",preguntas:["¿Sofía fue a una excursión?","¿Volvió triste a su casa?"],respuestas:["Sí","No"]},
+  {id:"3b-2",texto:"Pedro el pequeño marinero soñaba con aventuras en el mar todos los días iba a la playa de su pueblo chileno a construir barcos con arena y palos un día encontró una botella con un mapa viejo que indicaba un tesoro escondido en la isla cercana emocionado reunió a sus amigos Juanita y Mateo navegaron en un bote prestado enfrentaron olas grandes vieron gaviotas volando y finalmente hallaron el tesoro que era una caja llena de conchas brillantes y piedras de colores Pedro aprendió que las mejores aventuras están en la amistad y la imaginación no en el oro y regresaron cantando canciones de marineros felices por su descubrimiento.",preguntas:["¿Pedro encontró un mapa?","¿El tesoro era oro?"],respuestas:["Sí","No"]},
+  {id:"3b-3",texto:"En la feria del colegio de 3° básico todos estaban emocionados con los juegos y dulces Daniela quería ganar el osito gigante en el tiro al blanco pero fallaba siempre su papá le dijo recuerda respirar profundo y apuntar con calma Daniela practicó respiró hondo cerró un ojo apuntó y acertó tres veces el osito fue suyo compartió su alegría con sus compañeras que aplaudieron fuerte entendió que la paciencia y la práctica logran lo imposible mientras comían algodón de azúcar y reían bajo las luces de colores.",preguntas:["¿Daniela ganó el osito?","¿Lo logró sin practicar?"],respuestas:["Sí","No"]}
+],
+"4b":[
+  {id:"4b-1",texto:"En el pueblo donde vivía Martín todos conocían al inventor del barrio un hombre creativo que construía objetos útiles en su taller un día Martín entró y vio un robot que ordenaba libros y regaba plantas observó atento cada movimiento mientras escuchaba las explicaciones y desde entonces soñó con crear inventos que ayudaran a mejorar la vida de las personas.",preguntas:["¿Había un inventor?","¿El robot regaba plantas?"],respuestas:["Sí","Sí"]},
+  {id:"4b-2",texto:"Durante las vacaciones de verano Carla descubrió un libro mágico en el ático de su abuela el libro contenía historias de princesas guerreras dragones amigables y castillos flotantes cada noche antes de dormir leía una página y soñaba con esos mundos fantásticos una noche el libro brilló y Carla entró en su interior conoció a la princesa Luna que luchaba contra sombras oscuras juntas cabalgaron unicornios azules cruzaron ríos de estrellas y derrotaron al rey de las tinieblas con una varita de luz al despertar Carla guardó el secreto pero desde entonces escribía sus propias aventuras inspirada por la magia que había vivido.",preguntas:["¿Carla encontró un libro mágico?","¿Derrotaron al rey de las tinieblas?"],respuestas:["Sí","Sí"]},
+  {id:"4b-3",texto:"El equipo de fútbol del colegio 4° básico enfrentaba el campeonato comunal los Halcones estaban nerviosos porque su mejor jugador Andrés estaba enfermo pero el profesor les dijo el equipo es más que un jugador es corazón y unión en el partido jugaron con estrategia pasaban el balón rápido defendían juntos y aunque perdían 1-0 en el último minuto Mateo cabeceó un córner y empataron gritaron de alegría abrazados entendieron que ganar es aprender a luchar en equipo y así celebraron con helados aunque no fueron campeones fueron los más felices.",preguntas:["¿Andrés jugó el partido?","¿Aprendieron sobre trabajo en equipo?"],respuestas:["No","Sí"]}
+],
+"5b":[
+  {id:"5b-1",texto:"Durante una tarde lluviosa Camila decidió leer un libro antiguo que encontró en la biblioteca escolar a medida que avanzaba comprendió nuevas palabras imaginó lugares distintos y descubrió que la lectura podía ser una aventura silenciosa pero profunda que despertaba emociones pensamientos y curiosidad por aprender más del mundo que la rodeaba.",preguntas:["¿Camila estaba en la biblioteca?","¿La lectura despertó curiosidad?"],respuestas:["Sí","Sí"]},
+  {id:"5b-2",texto:"En el observatorio escolar de 5° básico los alumnos descubrieron un cometa nuevo que pasaba cerca de la Tierra el profesor explicó que estos cuerpos celestes viajan millones de kilómetros desde el borde del sistema solar y regresan cada cierto tiempo los niños tomaron notas dibujaron trayectorias calcularon velocidades y bautizaron al cometa como Estrella Andina en honor a los cerros que rodeaban su ciudad durante semanas siguieron su recorrido nocturno escribieron diarios de observación y hasta organizaron una exposición donde explicaron a sus familias cómo funcionaba la órbita elíptica comprendieron que la ciencia no solo observa el cielo sino que conecta a las personas con el universo infinito que las rodea.",preguntas:["¿Descubrieron un cometa nuevo?","¿Lo llamaron Estrella Andina?"],respuestas:["Sí","Sí"]},
+  {id:"5b-3",texto:"La expedición al Cajón del Maipo reunió a los alumnos de 5° básico con mochilas llenas de mapas brújulas y botellas de agua cruzaron esteros saltaron rocas y observaron cóndores planeando en el cielo el guía explicó cómo los mapuches leían las estrellas para orientarse y cómo los primeros exploradores españoles se perdían en estos valles al acampar contaron leyendas del nahuel que protege las lagunas y recolectaron muestras de minerales para analizar en el laboratorio escolar cada niño escribió su bitácora de viaje entendiendo que la geografía no es solo mapas sino historias vivas de la tierra y quienes la habitan.",preguntas:["¿Fueron al Cajón del Maipo?","¿Aprendieron sobre los mapuches?"],respuestas:["Sí","Sí"]}
+],
+"6b":[
+  {id:"6b-1",texto:"A medida que avanzaba el año escolar Diego aprendió que organizar su tiempo le permitía estudiar con menos estrés participar en clases y disfrutar momentos de descanso entendió que la responsabilidad no significaba perder libertad sino ganar confianza en sí mismo y mejorar su relación con los demás.",preguntas:["¿Diego aprendió a organizarse?","¿La responsabilidad le quitó confianza?"],respuestas:["Sí","No"]},
+  {id:"6b-2",texto:"El proyecto de reciclaje del colegio 6° básico transformó el patio en un centro de innovación los alumnos clasificaron residuos crearon composteros de lombrices y diseñaron maceteros con botellas plásticas investigaron cómo el plástico tarda 400 años en degradarse y calcularon que su generación produce suficiente basura para llenar un estadio cada semana presentaron sus datos al municipio con gráficos impactantes y propuestas concretas el concejal impresionado aprobó fondos para contenedores selectivos los niños sintieron el poder de la acción colectiva entendiendo que pequeños cambios multiplicados generan transformaciones ambientales profundas en su comunidad.",preguntas:["¿Crearon composteros?","¿El municipio aprobó fondos?"],respuestas:["Sí","Sí"]},
+  {id:"6b-3",texto:"Durante el taller de liderazgo los alumnos de 6° básico descubrieron que liderar no es mandar sino inspirar con acciones concretas organizaron la kermesse escolar dividiendo tareas según fortalezas algunos decoraron otros cocinaron tortas y algunos lideraron juegos aprendieron a delegar resolver conflictos y celebrar éxitos colectivos cuando terminaron exhaustos pero felices el director les dijo han demostrado que el liderazgo se construye día a día con responsabilidad empatía y trabajo en equipo desde entonces miraban sus clases con nuevos ojos buscando oportunidades para influir positivamente.",preguntas:["¿Organizaron la kermesse?","¿Liderar es solo mandar?"],respuestas:["Sí","No"]}
+],
+"7b":[
+  {id:"7b-1",texto:"Al enfrentar nuevos desafíos académicos Valentina descubrió que equivocarse era parte del aprendizaje cada error le permitió reflexionar mejorar estrategias y fortalecer su perseverancia comprendió que avanzar no siempre es rápido pero sí posible cuando existe constancia apoyo y una actitud abierta frente a las dificultades.",preguntas:["¿Valentina aprendió de los errores?","¿Rendirse fue su estrategia?"],respuestas:["Sí","No"]},
+  {id:"7b-2",texto:"El debate presidencial escolar de 7° básico enfrentó a candidatos improvisados con propuestas serias sobre recreos más largos mejor alimentación y más tecnología algunos prometían chocolate diario otros computadoras nuevas pero María presentó datos reales sobre nutrición horas de sueño y salud visual convenció a sus compañeros mostrando gráficos comparativos y testimonios de expertos aunque no ganó el voto popular ganó respeto por su rigor analítico entendió que la argumentación sólida pesa más que promesas vacías y que la democracia escolar enseña valores cívicos profundos desde temprana edad.",preguntas:["¿María usó datos reales?","¿Ganó por promesas vacías?"],respuestas:["Sí","No"]},
+  {id:"7b-3",texto:"La investigación sobre la Independencia de Chile llevó a los alumnos de 7° básico a reconstruir batallas con maquetas interactivas estudiaron estrategias militares motivaciones independentistas y consecuencias sociales visitaron el museo histórico donde tocaron réplicas de sables y cañones entrevistaron a historiadores locales y recrearon el discurso de O'Higgins en el patio escolar descubrieron que la historia no son fechas sino decisiones humanas complejas motivadas por ideales de libertad que aún resuenan en su realidad cotidiana de estudiantes chilenos.",preguntas:["¿Reconstruyeron batallas?","¿La historia son solo fechas?"],respuestas:["Sí","No"]}
+],
+"8b":[
+  {id:"8b-1",texto:"En la era de las redes sociales, los estudiantes de 8° básico deben aprender a identificar información falsa que se viraliza rápidamente en TikTok y WhatsApp. Influencers con miles de seguidores publican noticias inventadas sobre celebridades o gobiernos para ganar likes y ganar dinero con algoritmos que premian la controversia sobre la verdad. Un ejemplo reciente fue el rumor falso sobre un terremoto inminente en Santiago que generó pánico masivo y compras compulsivas de supermercados. Verificar fuentes confiables como sitios oficiales, contrastar con medios reconocidos y aplicar la regla del sentido común ayuda a no caer en trampas digitales diseñadas específicamente para manipular emociones adolescentes.",preguntas:["¿Las redes premian la verdad?","¿Hay que verificar siempre?"],respuestas:["No","Sí"]},
+  {id:"8b-2",texto:"El cambio climático ya afecta directamente a Chile con incendios forestales devastadores en el Valle Central, sequías prolongadas en la zona centro y deshielo acelerado en los glaciares patagónicos. En 2023, los incendios de Viña del Mar destruyeron más de 14 mil hectáreas y causaron 134 muertes, siendo el peor desastre registrado en el país. Causas principales incluyen deforestación ilegal, urbanización descontrolada en zonas de riesgo y olas de calor intensificadas por el efecto invernadero. Reducir emisiones requiere transporte público eléctrico, reforestación nativa masiva y consumo responsable de plásticos que contaminan océanos del Pacífico Sur donde vive el 90% de la vida marina.",preguntas:["¿Hubo incendios graves en Chile?","¿El cambio climático es falso?"],respuestas:["Sí","No"]},
+  {id:"8b-3",texto:"La programación informática ya no es exclusiva de universidades técnicas sino una habilidad básica para 8° básico en la era digital. Usando Scratch o Python simple, estudiantes crean videojuegos educativos, apps para reportar basura en el colegio y chatbots que responden dudas frecuentes de compañeros. En el colegio Los Halcones de Santiago, un equipo de octavos ganó concurso nacional desarrollando aplicación que detecta bullying mediante palabras clave en mensajes de WhatsApp escolar, alertando automáticamente a orientadores. Comprender algoritmos básicos enseña lógica estructurada, resolución de problemas complejos y pensamiento computacional aplicable a matemáticas, ciencias y hasta ética cotidiana.",preguntas:["¿La programación es solo para expertos?","¿Sirve para detectar bullying?"],respuestas:["No","Sí"]}
+],
+"1m":[
+  {id:"1m-1",texto:"Durante la adolescencia, la lectura se convierte en un espacio privilegiado para explorar la identidad propia a través de personajes que enfrentan dilemas similares: rupturas familiares, primeras desilusiones amorosas, presiones académicas y búsqueda de propósito personal. Novelas como 'Rayuela' de Cortázar o 'El túnel' de Sábato permiten a los estudiantes de 1° medio identificarse con protagonistas complejos que cuestionan normas sociales, experimentan con rebeldía y construyen su visión del mundo. Este proceso no solo desarrolla empatía hacia experiencias ajenas sino que facilita la verbalización de emociones propias, crucial en una etapa donde la autoexpresión suele ser limitada por vergüenza o falta de vocabulario emocional adecuado.",preguntas:["¿La lectura ayuda a explorar identidad?","¿Solo sirve para entretener?"],respuestas:["Sí","No"]},
+  {id:"1m-2",texto:"El movimiento estudiantil chileno de 2011 transformó radicalmente la educación pública al visibilizar desigualdades estructurales que afectaban especialmente a liceos vulnerables de zonas periféricas. Miles de estudiantes marcharon exigiendo educación gratuita y de calidad, no lucro en la educación y fin al copago, paralizando Santiago durante semanas con cacerolazos, tomas y asambleas masivas. Aunque la reforma educacional de Michelle Bachelet respondió parcialmente con gratuidad progresiva para el 60% más vulnerable, persisten desafíos: segregación escolar, deuda histórica de apoderados y formación docente insuficiente para metodologías inclusivas y socioemocionales demandadas por adolescentes post-pandemia.",preguntas:["¿El 2011 fue por educación gratuita?","¿Se resolvieron todos los problemas?"],respuestas:["Sí","No"]},
+  {id:"1m-3",texto:"Las plataformas digitales han revolucionado la socialización adolescente al ofrecer espacios de expresión anónima pero también exponer a ciberacoso, adicción a validación externa y distorsión de autoimagen por filtros estéticos irreales. Jóvenes de 1° medio navegan TikTok, Instagram y Discord simultáneamente, construyendo identidades fragmentadas que alternan entre memes irónicos, challenges virales y vulnerabilidad compartida en stories efímeros. La escuela debe enseñar no solo 'no publicar fotos personales' sino alfabetización digital crítica: reconocer algoritmos manipuladores, evaluar credibilidad de influencers y desarrollar resiliencia emocional ante hate speech y cancel culture que caracterizan las interacciones online de Gen Z chilena.",preguntas:["¿Las redes ayudan a la socialización?","¿La escuela enseña solo 'no publicar fotos'?"],respuestas:["Sí","No"]}
+],
+"2m":[
+  {id:"2m-1",texto:"En el contexto de la globalización digital del siglo XXI, la lectura trasciende su función tradicional de mero vehículo informativo para convertirse en herramienta indispensable de discernimiento crítico frente a la avalancha de contenidos efímeros que saturan las redes sociales y plataformas de streaming. Los estudiantes de educación media superior enfrentan diariamente un bombardeo de narrativas fragmentadas, deepfakes sofisticados y titulares sensacionalistas diseñados algorítmicamente para capturar atención inmediata más que fomentar reflexión profunda. Desarrollar competencias lectoras avanzadas permite no solo decodificar textos complejos —desde ensayos académicos hasta manifiestos políticos— sino también detectar sesgos implícitos, reconstruir cadenas causales complejas y evaluar la solidez argumentativa más allá de la retórica persuasiva.",preguntas:["¿La lectura ayuda frente a fake news?","¿Sirve solo para párrafos simples?"],respuestas:["Sí","No"]},
+  {id:"2m-2",texto:"La transición energética chilena hacia fuentes renovables enfrenta dilemas éticos y económicos complejos que demandan alfabetización científica avanzada. Si bien la matriz hidroeléctrica tradicional proporcionó estabilidad durante décadas, la dependencia de sequías extremas —agravadas por el cambio climático— obliga a priorizar solar y eólica en el norte árido y eólico-patagónico. Sin embargo, comunidades mapuches en la Araucanía cuestionan megaproyectos hidroeléctricos por impacto territorial, mientras expertos advierten sobre intermitencia renovable sin almacenamiento masivo de baterías de litio. La ciudadanía educada debe comprender no solo kWh generados sino externalidades: huella hídrica de paneles solares, reciclaje de turbinas eólicas y soberanía energética frente a China como proveedor dominante de tecnología verde.",preguntas:["¿Chile depende solo de hidroeléctricas?","¿Las comunidades apoyan todos los proyectos?"],respuestas:["No","No"]},
+  {id:"2m-3",texto:"El auge de la inteligencia artificial generativa transforma radicalmente tanto el mercado laboral como la concepción humanista de la educación superior. Herramientas como los modelos de lenguaje predictivo no solo automatizan tareas administrativas y generación de informes sino que desafían la autoría intelectual al producir ensayos coherentes, poesía métrica y hasta código funcional a partir de prompts simples. Universidades chilenas enfrentan el reto de redefinir evaluación académica más allá del texto escrito —pruebas orales, resolución de problemas en tiempo real, portafolios de proceso creativo— mientras empresas tecnológicas reclaman graduados capaces de entrenar, depurar y contextualizar outputs de IA más que memorizar hechos obsoletos. La pregunta filosófica central permanece: ¿qué habilidades permanecen intrínsecamente humanas cuando las máquinas dominan la síntesis informativa?",preguntas:["¿La IA reemplaza solo trabajos administrativos?","¿Las universidades deben cambiar evaluación?"],respuestas:["No","Sí"]}
+]
+};
+let tiempo = 60, intervalo, intervaloFluidez, nivelActual = "", textoActual = "";
+
+function toggleConfig() { document.getElementById('config').classList.toggle('hidden'); }
+function toggleTheme() { document.body.classList.toggle('light'); }
+function cambiarFuente(v) { document.documentElement.style.setProperty('--fontSize', v + 'rem'); }
+
+function cargarTextos() {
+  nivelActual = document.getElementById('nivel').value;
+  if (!nivelActual) return;
+  const textos = biblioteca[nivelActual];
+  const contenedor = document.getElementById('textoSeleccionado');
+  contenedor.innerHTML = '';
+  if (!Array.isArray(textos)) { cargarTextoEspecifico(0); return; }
+  textos.forEach((t, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = t.id;
+    btn.onclick = () => cargarTextoEspecifico(i);
+    contenedor.appendChild(btn);
+  });
+  document.getElementById('lectura').classList.remove('hidden');
+  document.getElementById('juego').classList.add('hidden');
+  document.getElementById('editor').classList.toggle('hidden', !document.getElementById('modoDocente').checked);
+  document.getElementById('timer').textContent = 60;
+  document.getElementById('barra').style.width = '0%';
+}
+
+function cargarTextoEspecifico(index) {
+  const textos = biblioteca[nivelActual];
+  const texto = Array.isArray(textos) ? textos[index] : textos;
+  textoActual = index;
+  document.getElementById('texto').textContent = texto.texto;
+  document.getElementById('editorTexto').value = texto.texto;
+  document.getElementById('editorP1').value = texto.preguntas[0];
+  document.getElementById('editorP2').value = texto.preguntas[1];
+}
+
+function iniciarLectura() {
+  if (!document.getElementById('toggleTimer').checked) return;
+  clearInterval(intervalo);
+  tiempo = 60;
+  intervalo = setInterval(() => {
+    tiempo--;
+    document.getElementById('timer').textContent = tiempo;
+    document.getElementById('barra').style.width = (100 - (tiempo * 1.66)) + '%';
+    if (tiempo <= 0) { clearInterval(intervalo); mostrarJuego(); }
+  }, 1000);
+}
+
+function mostrarJuego() {
+  document.getElementById('juego').classList.remove('hidden');
+  const textos = biblioteca[nivelActual];
+  const texto = Array.isArray(textos) ? textos[textoActual] : textos;
+  document.getElementById('p1').textContent = '• ' + texto.preguntas[0];
+  document.getElementById('p2').textContent = '• ' + texto.preguntas[1];
+  if (document.getElementById('modoDocente').checked) {
+    document.getElementById('respuestas').classList.remove('hidden');
+    document.getElementById('respuestas').textContent = 'Respuestas: ' + texto.respuestas.join(' / ');
+  } else {
+    document.getElementById('respuestas').classList.add('hidden');
+  }
+}
+
+function iniciarFluidez() {
+  clearInterval(intervaloFluidez);
+  const tipo = document.getElementById('tipoFluidez').value;
+  
+  let palabras = '';
+  if (tipo === 'silabas') palabras = 'ma-pa-tu-ca-sa-la-mi-no-ra-do ';
+  else if (tipo === 'palabras') palabras = 'sol luna casa perro gato niño mamá papá árbol rio mar cielo sol ';
+  else palabras = 'El sol brilla. La luna sale. El perro corre. La casa es grande. ';
+  
+  const cinta = document.getElementById('cintaFluidez');
+  cinta.textContent = palabras.repeat(5);
+  cinta.className = 'palabras-cinta palabras-cinta-animando'; // ← Activa animación
+  
+  document.getElementById('puntuacionFluidez').textContent = '¡Leyendo!';
+  document.getElementById('barraFluidez').style.width = '0%';
+  
+  let seg = 30;
+  document.getElementById('timerFluidez').textContent = seg;
+  
+  intervaloFluidez = setInterval(() => {
+    seg--;
+    document.getElementById('timerFluidez').textContent = seg;
+    document.getElementById('barraFluidez').style.width = (100 - (seg * 3.33)) + '%';
+    if (seg <= 0) {
+      clearInterval(intervaloFluidez);
+      document.getElementById('puntuacionFluidez').textContent = '¡Tiempo terminado!';
+    }
+  }, 1000);
+}
+
+function guardarEdicion() {
+  const textos = biblioteca[nivelActual];
+  if (Array.isArray(textos)) {
+    textos[textoActual].texto = document.getElementById('editorTexto').value;
+    textos[textoActual].preguntas[0] = document.getElementById('editorP1').value;
+    textos[textoActual].preguntas[1] = document.getElementById('editorP2').value;
+  } else {
+    biblioteca[nivelActual].texto = document.getElementById('editorTexto').value;
+    biblioteca[nivelActual].preguntas[0] = document.getElementById('editorP1').value;
+    biblioteca[nivelActual].preguntas[1] = document.getElementById('editorP2').value;
+  }
+  alert('Cambios guardados');
+}
+
+function exportarJSON() {
+  const data = JSON.stringify(biblioteca, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'biblioteca_lectura.json';
+  a.click();
+}
+
+document.getElementById('nivel').addEventListener('change', () => {
+  if (document.getElementById('modoDocente').checked && nivelActual) {
+    document.getElementById('editor').classList.remove('hidden');
+  }
+});
+function cambiarVelocidadCinta(segundos) {
+  const cinta = document.querySelector('.palabras-cinta');
+  if (cinta) {
+    cinta.style.animationDuration = segundos + 's';
+  }
+  document.getElementById('valorVelocidad').textContent = segundos + ' seg';
+  
+  // Mensaje guía por velocidad
+  let guia = '';
+  if (segundos >= 200) guia = '(muy lento - 2° básico)';
+  else if (segundos >= 120) guia = '(lento - 3°-5° básico)';
+  else if (segundos >= 80) guia = '(medio - 6°-8° básico)';
+  else guia = '(rápido - medio)';
+  
+  document.getElementById('valorVelocidad').textContent = segundos + ' seg ' + guia;
+}
+function irLectura() {
+  document.getElementById('fluidez').classList.add('hidden');
+  document.getElementById('juego').classList.add('hidden');
+  document.getElementById('lectura').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
+
